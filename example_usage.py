@@ -1,3 +1,5 @@
+import nltk
+from nltk.tokenize import sent_tokenize
 import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
@@ -16,29 +18,34 @@ tokenizer_list = [AutoTokenizer.from_pretrained(checkpoint) for checkpoint in ch
 selected_tokenizer = tokenizer_list[SELECTED_MODEL_INDEX]
 selected_model = model_list[SELECTED_MODEL_INDEX]
 
-sentences = [
-    "On Wednesday, the company reported first-quarter adjusted earnings of 12 cents per share, matching estimates, while revenue reached $1.08 billion, topping the $1.05 billion Street view.",
-    "SoFi generated record loan originations of $12.2 billion during the quarter, driven by personal, student and home loans.",
-    "Members increased 35 percent from a year earlier to 14.7 million. Total products climbed 39% to 22.2 million",
-    "CEO Anthony Noto said SoFi delivered its 18th straight Rule of 40 quarter. He cited 41 percent revenue growth and 31 percent adjusted EBITDA margins.",
-    "SoFi highlighted investments in crypto, stablecoin settlement, business banking and its premium SoFi Plus membership.",
-    "The company said SoFiUSD could support faster payments across fiat and digital assets through its Mastercard partnership.",
-    "We believe the crypto super cycle that is underway will completely transform financial services, enabling frictionless money movement. We are well positioned to benefit from this super cycle given our unique position as a tech company that is underpinned by the strength and stability of being a national bank,  the company said.",
-    "The lending segment produced $629 million in adjusted net revenue. Personal loan originations hit $8.3 billion. Student loan originations reached $2.6 billion, while home loan originations rose to $1.2 billion.",
-    "SoFi said its loan platform business added $3.6 billion in new commitments from three partners.",
-    "Chief Financial Officer Chris Lapointe said SoFi expects second-quarter adjusted net revenue of about $1.115 billion.",
-    "The company also sees second-quarter adjusted EBITDA of about $330 million and EPS of 10 cents to 11 cents.",
-    "Following the results, Needham analyst Kyle Peterson maintains a Buy rating, lowering the price forecast from $33 to $25.",
-    "He noted loan platform revenue missed estimates as management kept more loans on the balance sheet. He said the quarter appeared noisy, but SoFi's core investment thesis remains largely intact.",
-    "Peterson said SoFi's bank charter strengthens its competitive moat and improves lending unit economics.",
-    "He added the fast-growing technology segment supports long-term growth and offers potential for multiple expansion.",
-    "SOFI Price Action: SoFi Technologies shares were up 0.93 percent at $15.71 at the time of publication on Thursday, according to Benzinga Pro data."
-]
+article = """
+In a letter first reported by CNBC on Friday, Coons pressed Lutnick over comments made during an April 22 Senate Appropriations subcommittee hearing.
+During the hearing, the Commerce Secretary said the U.S. had not allowed Nvidia's H200 AI chips to be sold to Chinese firms.
+"We have not sold them any chips as of yet," Lutnick told lawmakers.
+That statement appeared to conflict with remarks Huang made in March, when the Nvidia CEO said the company had secured approvals from both U.S. and Chinese authorities to sell H200 chips into China.
+"Your statements before the committee appear to contradict Huang's comments," Coons wrote in his Thursday letter.
+Coons said he remains "deeply concerned" that permitting Chinese companies to purchase H200 chips could threaten U.S. national security and economic competitiveness, given the processors' role in powering advanced AI systems.
+The senator requested that Lutnick provide detailed answers within one week, including how many export licenses have been approved, how many chips have already been shipped and whether additional licenses are under consideration.
+Nvidia and the Commerce Department did not immediately respond to Benzinga's request for comments.
+The dispute comes ahead of President Donald Trump's expected trip to China for talks with President Xi Jinping, potentially elevating semiconductor exports as a major geopolitical issue.
+The Trump administration previously required Nvidia to obtain export licenses for advanced chips sold to China, a market that once accounted for more than 20 percent of the company's data center revenue.
+Price Action: Nvidia shares closed Friday at $198.45, down 0.56 percent and slipped another 0.17 percent in after-hours trading to $198.12, according to Benzinga Pro.
+According to Benzinga Edge Rankings, Nvidia scores in the 97th percentile for Quality while sustaining a strong positive price trend across its short, medium and long-term price performance indicators.
+"""
+
+article = " ".join(article.strip().split())
+
+try:
+    article_list = sent_tokenize(article)
+except LookupError:
+    nltk.download("punkt_tab", quiet=True)
+    article_list = sent_tokenize(article)
+
 
 label_map = {0: "Negative", 1: "Neutral", 2: "Positive"}
 
 tensor_cumulative_scores = torch.tensor([0.0, 0.0, 0.0])
-for sentence in sentences:
+for sentence in article_list:
     print(sentence)
     inputs = selected_tokenizer(sentence, return_tensors="pt")
 
@@ -48,8 +55,8 @@ for sentence in sentences:
     tensor_cumulative_scores = tensor_cumulative_scores + logits[0]
     print(label_map[torch.argmax(logits).item()], logits)
 
-print(tensor_cumulative_scores)
+print("\nCumulative scores:", tensor_cumulative_scores)
 overall_label = label_map[int(torch.argmax(tensor_cumulative_scores).item())]
-print("\nOverall this document is classified as", overall_label)
+print("Overall this document is classified as", overall_label)
 
 #selected_model.push_to_hub("financial-model")
