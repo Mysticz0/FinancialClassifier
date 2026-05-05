@@ -1,60 +1,81 @@
-# Financial classifier
+# Financial Classifier
 
-Fine-tunes [ProsusAI/finbert](https://huggingface.co/ProsusAI/finbert) on the [Financial PhraseBank](https://huggingface.co/datasets/takala/financial_phrasebank) (`sentences_50agree` split) for **three-class sentiment**: negative (0), neutral (1), positive (2).
+This project trains a financial sentiment classifier with Hugging Face Transformers and uses it to score the sentiment of finance news articles from a URL.
 
-## Repository layout
+Sentiment labels:
+- `0`: Negative
+- `1`: Neutral
+- `2`: Positive
 
-| Path | Description |
-|------|-------------|
-| `training.py` | Loads data, fine-tunes FinBERT, and **writes the output directory** `financial-trainer/` (see `NEW_MODEL_NAME`). |
-| `financial-trainer/` | **Generated artifact** — created when you run `training.py`. Contains Hugging Face `Trainer` checkpoints (e.g. `checkpoint-500`, `checkpoint-1000`, …). Listed in `.gitignore` so it is not committed; regenerate locally after clone. |
-| `example_usage.py` | Loads checkpoints under `financial-trainer/`, splits a sample article into sentences with **NLTK** `sent_tokenize` (handles abbreviations such as `U.S.`), runs the classifier per sentence, and sums logits for an overall document-style label. |
+## Project Files
+
+- `training.py`: fine-tunes one or more Transformer models on Financial PhraseBank and logs runs to MLflow.
+- `main.py`: interactive CLI that downloads an article, splits it into sentences, classifies each sentence, and prints an overall sentiment.
+- `mlflow.db`: local MLflow SQLite tracking database (generated/updated during training).
+
+## Dataset
+
+Training uses [`takala/financial_phrasebank`](https://huggingface.co/datasets/takala/financial_phrasebank), configuration `sentences_50agree`, then creates an 80/20 train-validation split with `seed=42`.
 
 ## Setup
 
-Python 3.9+ is recommended. Install dependencies (versions may vary with your environment):
+Use Python 3.9+.
+
+Install core dependencies:
 
 ```bash
-pip install torch transformers datasets scikit-learn numpy accelerate nltk
+pip install torch transformers datasets scikit-learn numpy accelerate mlflow nltk requests beautifulsoup4
 ```
 
-It is recommended to be using a GPU for training. Install `torchvision` using website command at https://pytorch.org/get-started/locally/. Example for Windows:
+For GPU support, install the appropriate PyTorch build for your system from [pytorch.org](https://pytorch.org/get-started/locally/).
 
-```bash
-pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu126
-```
+## Training
 
-You need network access on first run to download the dataset and the base model from Hugging Face.
-
-The first time sentence splitting runs, NLTK may download the `punkt_tab` tokenizer data automatically (see `example_usage.py`).
-
-## Train (generates `financial-trainer/`)
-
-From this directory:
+Run:
 
 ```bash
 python training.py
 ```
 
-Training uses:
+What `training.py` does:
+- Loads Financial PhraseBank and tokenizes the `sentence` field.
+- Trains each model listed in `models_to_train` (currently `roberta-base`).
+- Evaluates each epoch with accuracy, macro F1, and weighted F1.
+- Uses early stopping (`patience=2`) and loads the best checkpoint at the end.
+- Logs params/metrics to MLflow (`sqlite:///mlflow.db`).
+- Saves checkpoints under `BASE_DIR/<model-name>/checkpoint-*`.
 
-- **Dataset:** `takala/financial_phrasebank`, config `sentences_50agree`, with an 80/20 train/validation split (`seed=42`).
-- **Output directory:** `financial-trainer` (see `NEW_MODEL_NAME` in `training.py`).
-- **Metrics:** accuracy and macro/weighted F1, evaluated each epoch.
+Important:
+- Update `BASE_DIR` in `training.py` to a valid path on your machine before training.
 
-After training finishes, checkpoints appear under `financial-trainer/checkpoint-*`. The exact step numbers depend on dataset size and training configuration.
+## Running Inference
 
-## Run inference (`example_usage.py`)
+Run:
 
 ```bash
-python example_usage.py
+python main.py
 ```
 
-- Set `SELECTED_MODEL_INDEX` to choose which of the listed checkpoint paths to use (paths must match folders inside `financial-trainer/` after training).
-- The embedded sample `article` is normalized to whitespace, split with `nltk.tokenize.sent_tokenize`, then each sentence is classified; logits are accumulated and an overall label is printed.
+Workflow:
+- Enter a news article URL.
+- The script extracts paragraph text from the page.
+- The text is split into sentences (`nltk.sent_tokenize`).
+- Each sentence is scored by the model `Mysticz0/finance-pro-model-v1.0`.
+- Sentence logits are accumulated to produce a final article-level sentiment.
+
+If NLTK tokenizer data is missing, the script downloads `punkt_tab` automatically.
+
+## MLflow
+
+To inspect experiment runs locally:
+
+```bash
+mlflow ui
+```
+
+Then open [http://127.0.0.1:5000](http://127.0.0.1:5000).
 
 ## Notes
 
-- The repo does not include `financial-trainer/` in version control. After cloning, run `python training.py` before `example_usage.py` (unless you point inference at another checkpoint path).
-- If `financial-trainer/` is missing or you change hyperparameters, run `training.py` again; checkpoint paths and `SELECTED_MODEL_INDEX` in `example_usage.py` may need updating to match new runs.
-- Uncommenting `selected_model.push_to_hub(...)` at the bottom of `example_usage.py` would upload a checkpoint to the Hugging Face Hub (requires authentication and a chosen repo id).
+- `main.py` currently uses a hosted Hugging Face model (`Mysticz0/finance-pro-model-v1.0`) for inference rather than loading directly from local checkpoints.
+- First run requires internet access to download the dataset/model artifacts.
