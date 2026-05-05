@@ -1,6 +1,6 @@
 # Financial Classifier
 
-This project trains a financial sentiment classifier with Hugging Face Transformers and uses it to score the sentiment of finance news articles from a URL.
+This project trains a financial sentiment classifier with Hugging Face Transformers and uses it to score the sentiment of finance news articles from a BENZINGA URL.
 
 Sentiment labels:
 - `0`: Negative
